@@ -1,0 +1,294 @@
+/*coded by Aravindseenu @AK and Kamal Prasad Balaji
+  PID control code for Pneumatic position control of Double acting cylinder
+  guided by Kamal Prasad Balaji, https://www.linkedin.com/in/kpbind/
+*/
+
+#include <Servo.h>
+Servo myservo1;
+Servo myservo2;
+//us sensor pins
+#define trigPin 12
+#define echoPin 13
+
+const byte interruptPin = 0;
+
+// variables for Position
+double crnt_pos = 0.0;
+double tem = 0.0;
+double trgt_pos = 0.0;
+int i;
+float pos = 0.0;
+char ch = ' ';
+String wrd = "";
+double init_pos = 0;
+double vel = 0.0;
+double prev_pos = 0.0;
+
+
+
+//pid variables
+double error = 0.0;
+double error_dt = 0.0;
+double error_idt = 0.0;
+float pid = 0.0;
+float kp = 2.7;
+float kd = 0.7;
+float ki = 0.008;
+double error_prv = 0.0;
+
+//time variable
+float t_m1 = 0.0;
+float t_0 = 0.0;
+//servo control variable
+int r_t = 0.0;
+
+// other varialbes
+float time;
+float start_time;
+int reach = 1;
+float temp_prev = 0.0;
+
+int n = 1;
+
+
+
+void setup()
+{
+  Serial.begin(9600);
+  pinMode(3, OUTPUT);
+  myservo1.attach(5);
+  myservo2.attach(6);
+
+  digitalWrite(3, LOW);
+  myservo1.write(30);
+  myservo2.write(30);
+  delay(2000);
+  myservo1.write(115);
+  myservo2.write(115);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  pinMode(interruptPin, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), reset, RISING);
+
+}
+
+void reset()
+{
+
+  //while(0)
+  {
+    digitalWrite(3, LOW);
+    myservo1.write(110);
+    myservo2.write(110);//reverse
+    Serial.println(" INTERRRUPTTT ");
+  }
+}
+
+double cal_crnt_pos()
+{
+  float duration;
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH);
+  pos = (duration / 2) * 0.0344;
+
+  //Serial.print("Distance = ");
+  //Serial.print(pos);
+  //Serial.println(" cm");
+  //delay(50);
+  return (pos);
+}
+
+float crnt_time()
+{
+  time = float( millis() - start_time) / 1000;
+  return (time);
+
+
+}
+
+void loop()
+{
+  //Serial.print("DATA,TIME,TIMER,");
+  // delay(100);
+  /*while(Serial.available())
+    {   wrd="";
+     ch=' ';
+    Serial.println("----------------------------------------------------");
+     while(ch!='\n')
+     {
+      wrd+= ch;
+      ch = Serial.read();
+      delay(10);
+      Serial.println(ch);
+
+     }
+     trgt_pos = wrd.toInt();
+     Serial.print("target,");Serial.println(trgt_pos);
+     crnt_pos = cal_crnt_pos();
+     init_pos = crnt_pos;
+     error = trgt_pos - crnt_pos ;
+     Serial.print("err,");Serial.println(error);
+     Serial.print("current pos,");Serial.print(crnt_pos);Serial.println(" cm");
+     Serial.println("----------------------------------------------------");
+     Serial.print("kp=");Serial.print(kp);Serial.print(",kd=");Serial.print(kd);Serial.print(",ki=");Serial.print(ki);Serial.print("crnt_time");Serial.print(",");Serial.print("trgt_pos-error");Serial.print(",");Serial.print("trgt_pos");Serial.print(",");Serial.println("pid");
+     //delay(100);
+     start_time=millis();
+     reach=0;
+
+    }*/
+  /*Serial.print("cur_pos:");Serial.println(cal_crnt_pos());
+    Serial.print("trg:");Serial.println(trgt_pos);
+    Serial.print("err:");Serial.println(error);
+  */
+
+  if (n == 1)
+  {
+    //#############################################################################################################
+    //delay(1000);
+
+    trgt_pos = 30;
+    Serial.print("target,"); Serial.println(trgt_pos);
+    crnt_pos = cal_crnt_pos();
+    init_pos = crnt_pos;
+    error = trgt_pos - crnt_pos ;
+    Serial.print("err,"); Serial.println(error);
+    Serial.print("current pos,"); Serial.print(crnt_pos); Serial.println(" cm");
+    Serial.println("----------------------------------------------------");
+    Serial.print("kp="); Serial.print(kp); Serial.print(",kd="); Serial.print(kd); Serial.print(",ki="); Serial.print(ki); Serial.print("crnt_time"); Serial.print(","); Serial.print("trgt_pos-error"); Serial.print(","); Serial.print("trgt_pos"); Serial.print(","); Serial.println("pid");
+    //delay(100);
+    start_time = millis();
+    reach = 0;
+    Serial.println("CLEARDATA");
+    Serial.println("LABEL,tim,t,Targ-e(t),Targ, pid, kp*e(t),kd*e(t)dt,ki*i(e(t)),error,Servo,...");
+    Serial.println("RESETTIMER"); //resets timer to 0
+    n = 0;
+  }
+  //#############################################################################################################
+
+
+
+
+
+  while (reach == 0)
+  {
+    //Serial.println("################");
+    // Serial.print("err:");Serial.println(error);
+    for (i = abs(error); i >= 0; i = abs(error))
+    {
+      t_0 = crnt_time();
+      error = trgt_pos - cal_crnt_pos();
+      error_dt = (error - error_prv) / (t_0 - t_m1 );
+      error_prv = error;
+      error_idt += error * (t_0 - t_m1 ) ;
+      t_m1 = t_0;
+      pid = (kp * error) + (ki * error_idt) + (kd * error_dt);
+      /* vel = (trgt_pos-error-prev_pos);//(t_0 - t_m1 );
+        prev_pos = trgt_pos-error;
+        vel = abs(vel);*/
+
+
+
+      Serial.print("DATA,");
+      //   Serial.print("err:");Serial.println(error);
+      Serial.print(String(t_0)); Serial.print(",");
+      Serial.print(String(t_0)); Serial.print(",");
+      Serial.print(trgt_pos - error); Serial.print(",");
+      Serial.print(trgt_pos); Serial.print(",");
+      Serial.print(pid); Serial.print(",");
+      Serial.print(kp * error); Serial.print(",");
+      Serial.print(kd * error_dt); Serial.print(",");
+      Serial.print(ki * error_idt); Serial.print(",");
+      Serial.print(error); Serial.print(",");
+      Serial.print(trgt_pos - error); Serial.print(",");
+      /*   Serial.print(prev_pos);Serial.print(",");
+         Serial.print(vel);Serial.print(",");
+          prev_pos = trgt_pos-error;
+         vel = (trgt_pos-error-prev_pos);//(t_0 - t_m1 );
+        //prev_pos = trgt_pos-error; t_m1 = t_0;
+        //vel = abs(vel);
+
+        //Serial.print(trgt_pos-error);Serial.print(",");
+      */
+      /* Serial.print(prev_pos);Serial.print(",");
+        Serial.print(t_0); Serial.print(",");
+        Serial.print(t_m1);Serial.print(",");
+      */
+
+      if (error > 0.1)
+      {
+        digitalWrite(3, HIGH);
+        //    Serial.println("Forward");
+      }
+      else if ( error < -0.1)
+      {
+        digitalWrite(3, LOW);
+        //  Serial.println("Reverse");
+      }
+
+
+      if (error = (abs(error ) <= 0.2))
+      {
+        r_t = 110;
+      }
+      else
+      {
+        r_t = 100 - abs( pid );
+      }
+      /*if(error = (abs(error ) <= 1))
+        {digitalWrite(3,LOW);}*/
+      if ( r_t > 110)
+      {
+        r_t = 110;
+      }
+      else if (r_t < 20)
+      {
+        r_t = 20;
+      }
+      //Serial.print("pid");;Serial.print("rt: ");
+      //Serial.print(",");
+      Serial.print(r_t); Serial.print(",");
+
+      //Serial.print(vel);//Serial.print(",");Serial.print(pid);
+      Serial.println(",...");
+
+
+      myservo1.write(r_t);
+      myservo2.write(r_t);
+      delay(10);
+
+      if (crnt_time() >= 10)
+      {
+        reach = 1;
+        break;
+      }
+    }
+    myservo1.write(115);
+    myservo2.write(115);
+    // delay(100);
+
+  }
+}
+
+
+
+/*double velocity()
+  {
+  vel = (crnt_pos-prev_pos)/(t_0-t_m1);
+  prev_pos = crnt_pos;
+  vel = abs(vel);
+
+  Serial.print(vel);//Serial.print(",");Serial.print(pid);
+  Serial.println(",...");
+  }*/
+
+
+
+
+
+
